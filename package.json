@@ -18,8 +18,7 @@
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
     "uuid": "^13.0.0",
-    "uuid": "^13.0.0",
-    "ioredis": "^5.4.2",
+    "@upstash/redis": "^1.31.5",
     "styled-components": "^6.1.11"
   },
   "devDependencies": {
