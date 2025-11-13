@@ -1,8 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
-
-const socket = io('/'); // Connect to the root for Vercel
 
 function Join() {
   const { roomId: paramRoomId } = useParams();
@@ -12,13 +10,12 @@ function Join() {
   const [roomId, setRoomId] = useState(paramRoomId || '');
   const [players, setPlayers] = useState([]);
   const [message, setMessage] = useState('Waiting for opponent...');
+  const socketRef = useRef(null);
 
   useEffect(() => {
-    if (nickname && roomId) {
-      socket.emit('join-duel', { roomId, nickname });
-    }
+    socketRef.current = io('/');
 
-    socket.on('player-joined', (currentPlayers) => {
+    socketRef.current.on('player-joined', (currentPlayers) => {
       setPlayers(currentPlayers);
       if (currentPlayers.length === 1) {
         setMessage('Waiting for opponent...');
@@ -27,33 +24,38 @@ function Join() {
       }
     });
 
-    socket.on('room-not-found', () => {
+    socketRef.current.on('room-not-found', () => {
       setMessage('Room not found. Please check the ID.');
     });
 
-    socket.on('room-full', () => {
+    socketRef.current.on('room-full', () => {
       setMessage('Room is full. Cannot join.');
     });
 
-    socket.on('start-quiz', (data) => {
+    socketRef.current.on('start-quiz', (data) => {
       console.log('Quiz starting with data:', data);
       navigate(`/quiz/${roomId}`, { state: { nickname, players: data.players, currentQuestion: data.currentQuestion, totalQuestions: data.totalQuestions } });
     });
 
     return () => {
-      socket.off('player-joined');
-      socket.off('room-not-found');
-      socket.off('room-full');
-      socket.off('start-quiz');
+      socketRef.current.disconnect();
     };
-  }, [nickname, roomId, navigate]);
+  }, [navigate, roomId, nickname]);
+
+  useEffect(() => {
+    if (nickname && roomId && socketRef.current) {
+      socketRef.current.emit('join-duel', { roomId, nickname });
+    }
+  }, [nickname, roomId]);
 
   const handleJoin = () => {
     if (!nickname || !roomId) {
       alert('Please enter both nickname and Room ID.');
       return;
     }
-    socket.emit('join-duel', { roomId, nickname });
+    if (socketRef.current) {
+      socketRef.current.emit('join-duel', { roomId, nickname });
+    }
   };
 
   return (

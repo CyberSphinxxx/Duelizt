@@ -1,8 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
-
-const socket = io('/'); // Connect to the root for Vercel
 
 function Quiz() {
   const { roomId } = useParams();
@@ -16,6 +14,7 @@ function Quiz() {
   const [players, setPlayers] = useState(initialPlayers);
   const [selectedAnswerIndex, setSelectedAnswerIndex] = useState(null);
   const [feedback, setFeedback] = useState('');
+  const socketRef = useRef(null);
 
   useEffect(() => {
     if (!nickname || !initialQuestion || !initialPlayers) {
@@ -23,15 +22,17 @@ function Quiz() {
       return;
     }
 
+    socketRef.current = io('/');
+
     const initialScores = {};
     initialPlayers.forEach(p => initialScores[p.id] = 0);
     setScores(initialScores);
 
-    socket.on('update-score', (newScores) => {
+    socketRef.current.on('update-score', (newScores) => {
       setScores(newScores);
     });
 
-    socket.on('next-question', (data) => {
+    socketRef.current.on('next-question', (data) => {
       setCurrentQuestion(data.currentQuestion);
       setQuestionIndex(data.currentQuestionIndex);
       setScores(data.scores);
@@ -39,28 +40,27 @@ function Quiz() {
       setFeedback('');
     });
 
-    socket.on('game-over', (data) => {
+    socketRef.current.on('game-over', (data) => {
       navigate(`/results/${roomId}`, { state: { scores: data.scores, players: data.players } });
     });
 
-    socket.on('player-left', ({ playerId, nickname: leftNickname, players: updatedPlayers }) => {
+    socketRef.current.on('player-left', ({ playerId, nickname: leftNickname, players: updatedPlayers }) => {
       setPlayers(updatedPlayers);
       setFeedback(`${leftNickname} has left the game.`);
     });
 
 
     return () => {
-      socket.off('update-score');
-      socket.off('next-question');
-      socket.off('game-over');
-      socket.off('player-left');
+      socketRef.current.disconnect();
     };
   }, [roomId, nickname, initialQuestion, initialPlayers, navigate]);
 
   const handleSubmitAnswer = (answerIndex) => {
     if (selectedAnswerIndex !== null) return;
     setSelectedAnswerIndex(answerIndex);
-    socket.emit('submit-answer', { roomId, playerId: socket.id, answerIndex });
+    if (socketRef.current) {
+      socketRef.current.emit('submit-answer', { roomId, playerId: socketRef.current.id, answerIndex });
+    }
 
     if (answerIndex === currentQuestion.correctAnswerIndex) {
       setFeedback('Correct!');
