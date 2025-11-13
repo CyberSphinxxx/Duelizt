@@ -67,7 +67,7 @@ function Home() {
       });
       const data = await response.json();
       const newRoomId = data.roomId;
-      navigate(`/join/${newRoomId}`, { state: { nickname } });
+      navigate(`/join/${newRoomId}`, { state: { nickname, isCreator: true } });
     } catch (error) {
       console.error('Error creating room:', error);
       alert('Failed to create duel. Please try again.');

@@ -29,6 +29,11 @@ const Button = styled.button`
   &:hover {
     background-color: #5a4cdb;
   }
+
+  &:disabled {
+    background-color: #444;
+    cursor: not-allowed;
+  }
 `;
 
 const PlayerList = styled.ul`
@@ -38,11 +43,18 @@ const PlayerList = styled.ul`
 `;
 
 const PlayerItem = styled.li`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   padding: 10px;
   background-color: #333;
   border-radius: 8px;
   margin-bottom: 10px;
   font-size: 18px;
+`;
+
+const ReadyStatus = styled.span`
+  color: ${props => (props.ready ? '#2ecc71' : '#e74c3c')};
 `;
 
 function Join() {
@@ -54,16 +66,21 @@ function Join() {
   const [players, setPlayers] = useState([]);
   const [message, setMessage] = useState('Waiting for opponent...');
   const socketRef = useRef(null);
+  const isCreator = location.state?.isCreator || false;
 
   useEffect(() => {
     socketRef.current = io('/');
 
-    socketRef.current.on('player-joined', (currentPlayers) => {
+    if (nickname && roomId) {
+      socketRef.current.emit('join-duel', { roomId, nickname, isCreator });
+    }
+
+    socketRef.current.on('player-update', (currentPlayers) => {
       setPlayers(currentPlayers);
-      if (currentPlayers.length === 1) {
+      if (currentPlayers.length < 2) {
         setMessage('Waiting for opponent...');
-      } else if (currentPlayers.length === 2) {
-        setMessage('Both players connected! Starting quiz...');
+      } else {
+        setMessage('Ready up!');
       }
     });
 
@@ -76,63 +93,49 @@ function Join() {
     });
 
     socketRef.current.on('start-quiz', (data) => {
-      console.log('Quiz starting with data:', data);
-      navigate(`/quiz/${roomId}`, { state: { nickname, players: data.players, currentQuestion: data.currentQuestion, totalQuestions: data.totalQuestions } });
+      navigate(`/quiz/${roomId}`, { state: { ...data, nickname } });
     });
 
     return () => {
       socketRef.current.disconnect();
     };
-  }, [navigate, roomId, nickname]);
+  }, [navigate, roomId, nickname, isCreator]);
 
-  useEffect(() => {
-    if (nickname && roomId && socketRef.current) {
-      socketRef.current.emit('join-duel', { roomId, nickname });
-    }
-  }, [nickname, roomId]);
-
-  const handleJoin = () => {
-    if (!nickname || !roomId) {
-      alert('Please enter both nickname and Room ID.');
-      return;
-    }
+  const handleReady = () => {
     if (socketRef.current) {
-      socketRef.current.emit('join-duel', { roomId, nickname });
+      socketRef.current.emit('player-ready', { roomId, playerId: socketRef.current.id });
     }
   };
 
+  const handleStartGame = () => {
+    if (socketRef.current) {
+      socketRef.current.emit('start-game', { roomId });
+    }
+  };
+
+  const allPlayersReady = players.length > 1 && players.every(p => p.ready);
+  const currentPlayer = players.find(p => p.id === socketRef.current?.id);
+
   return (
     <JoinContainer>
-      <Title>Join Duel</Title>
-      {!paramRoomId && (
-        <Input
-          type="text"
-          placeholder="Enter Room ID"
-          value={roomId}
-          onChange={(e) => setRoomId(e.target.value)}
-        />
-      )}
-      {!location.state?.nickname && (
-        <Input
-          type="text"
-          placeholder="Enter your nickname"
-          value={nickname}
-          onChange={(e) => setNickname(e.target.value)}
-        />
-      )}
-      {(!paramRoomId || !location.state?.nickname) && (
-        <Button onClick={handleJoin}>Join</Button>
-      )}
+      <Title>Waiting Room</Title>
+      <p>Room ID: {roomId}</p>
       <p>{message}</p>
-      {players.length > 0 && (
-        <div>
-          <h2>Players in Room ({roomId}):</h2>
-          <PlayerList>
-            {players.map((player) => (
-              <PlayerItem key={player.id}>{player.nickname}</PlayerItem>
-            ))}
-          </PlayerList>
-        </div>
+      <PlayerList>
+        {players.map((player) => (
+          <PlayerItem key={player.id}>
+            <span>{player.nickname}</span>
+            <ReadyStatus ready={player.ready}>{player.ready ? 'Ready' : 'Not Ready'}</ReadyStatus>
+          </PlayerItem>
+        ))}
+      </PlayerList>
+      {!isCreator && !currentPlayer?.ready && (
+        <Button onClick={handleReady}>Ready</Button>
+      )}
+      {isCreator && (
+        <Button onClick={handleStartGame} disabled={!allPlayersReady}>
+          Start Duel
+        </Button>
       )}
     </JoinContainer>
   );

@@ -23,7 +23,8 @@ app.post('/api/create-room', async (req, res) => {
         quizStarted: false,
         currentQuestionIndex: 0,
         scores: {},
-        questions: generateQuizQuestions()
+        questions: generateQuizQuestions(),
+        gameCreator: null
     };
     await kv.set(roomId, room);
     console.log(`Room ${roomId} created.`);
@@ -43,7 +44,7 @@ app.get('/api/join-room/:roomId', async (req, res) => {
 io.on('connection', (socket) => {
     console.log('New client connected:', socket.id);
 
-    socket.on('join-duel', async ({ roomId, nickname }) => {
+    socket.on('join-duel', async ({ roomId, nickname, isCreator }) => {
         let room = await kv.get(roomId);
         if (!room) {
             socket.emit('room-not-found');
@@ -55,7 +56,10 @@ io.on('connection', (socket) => {
             return;
         }
 
-        const player = { id: socket.id, nickname };
+        const player = { id: socket.id, nickname, ready: isCreator };
+        if (isCreator && !room.gameCreator) {
+            room.gameCreator = socket.id;
+        }
         room.players.push(player);
         room.scores[socket.id] = 0;
         await kv.set(roomId, room);
@@ -63,18 +67,32 @@ io.on('connection', (socket) => {
 
         console.log(`${nickname} (${socket.id}) joined room ${roomId}. Players: ${room.players.length}`);
 
-        io.to(roomId).emit('player-joined', room.players);
+        io.to(roomId).emit('player-update', room.players);
+    });
 
-        if (room.players.length === 2) {
-            console.log(`Two players in room ${roomId}. Starting quiz...`);
-            room.quizStarted = true;
+    socket.on('player-ready', async ({ roomId, playerId }) => {
+        let room = await kv.get(roomId);
+        if (!room) return;
+
+        const player = room.players.find(p => p.id === playerId);
+        if (player) {
+            player.ready = true;
             await kv.set(roomId, room);
-            io.to(roomId).emit('start-quiz', {
-                players: room.players,
-                currentQuestion: room.questions[room.currentQuestionIndex],
-                totalQuestions: room.questions.length
-            });
+            io.to(roomId).emit('player-update', room.players);
         }
+    });
+
+    socket.on('start-game', async ({ roomId }) => {
+        let room = await kv.get(roomId);
+        if (!room || room.quizStarted) return;
+
+        room.quizStarted = true;
+        await kv.set(roomId, room);
+        io.to(roomId).emit('start-quiz', {
+            players: room.players,
+            currentQuestion: room.questions[room.currentQuestionIndex],
+            totalQuestions: room.questions.length
+        });
     });
 
     socket.on('submit-answer', async ({ roomId, playerId, answerIndex }) => {
@@ -89,14 +107,14 @@ io.on('connection', (socket) => {
                     currentQuestion.answeredBy = [];
                 }
                 currentQuestion.answeredBy.push(playerId);
-                console.log(`${room.players.find(p => p.id === playerId).nickname} got a point in room ${roomId}! Score: ${room.scores[playerId]}`);
             }
         }
 
         const playersAnswered = room.players.filter(p => currentQuestion.answeredBy && currentQuestion.answeredBy.includes(p.id)).length;
-        if (playersAnswered === room.players.length || room.players.length === 1) {
+        if (playersAnswered === room.players.length) {
             setTimeout(async () => {
                 room.currentQuestionIndex++;
+                await kv.set(roomId, room);
                 if (room.currentQuestionIndex < room.questions.length) {
                     io.to(roomId).emit('next-question', {
                         currentQuestion: room.questions[room.currentQuestionIndex],
@@ -107,7 +125,6 @@ io.on('connection', (socket) => {
                     io.to(roomId).emit('game-over', { scores: room.scores, players: room.players });
                     await kv.del(roomId);
                 }
-                await kv.set(roomId, room);
             }, 2000);
         }
         io.to(roomId).emit('update-score', room.scores);
@@ -116,8 +133,20 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', async () => {
         console.log('Client disconnected:', socket.id);
-        // This is more complex with a KV store, as we need to iterate through all rooms.
-        // For now, we'll leave this as a potential improvement.
+        // This is a simplified disconnect logic. A more robust solution would involve tracking which room the socket was in.
+        const allRooms = await kv.scan(0, { match: '*' });
+        for await (const roomId of allRooms[1]) {
+            let room = await kv.get(roomId);
+            if (room && room.players) {
+                const playerIndex = room.players.findIndex(p => p.id === socket.id);
+                if (playerIndex !== -1) {
+                    room.players.splice(playerIndex, 1);
+                    await kv.set(roomId, room);
+                    io.to(roomId).emit('player-update', room.players);
+                    break;
+                }
+            }
+        }
     });
 });
 
