@@ -17,8 +17,7 @@
     "react-router-dom": "^7.9.6",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
-    "uuid": "^13.0.0",
-    "vercel-socket-io": "^1.0.1"
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

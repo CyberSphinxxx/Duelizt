@@ -2,7 +2,6 @@ const express = require('express');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const { v4: uuidv4 } = require('uuid');
-const { io: vercelIO, server: vercelServer } = require('vercel-socket-io');
 
 const app = express();
 const httpServer = createServer(app);
@@ -166,10 +165,6 @@ function generateQuizQuestions() {
     ];
 }
 
-vercelIO.on('connection', (socket) => {
-    io.emit('connection', socket);
-});
-
 module.exports = (req, res) => {
-    vercelServer.lookup(req, res);
+    httpServer.emit('request', req, res);
 };
