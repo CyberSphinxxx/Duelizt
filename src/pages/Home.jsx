@@ -1,8 +1,51 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { io } from 'socket.io-client';
+import styled from 'styled-components';
 
-const socket = io('/'); // Connect to the root for Vercel
+const HomeContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+  max-width: 400px;
+`;
+
+const Title = styled.h1`
+  font-size: 48px;
+  color: #6c5ce7;
+  margin-bottom: 20px;
+`;
+
+const Input = styled.input`
+  width: 100%;
+`;
+
+const Button = styled.button`
+  width: 100%;
+  background-color: #6c5ce7;
+  color: #fff;
+
+  &:hover {
+    background-color: #5a4cdb;
+  }
+`;
+
+const OrDivider = styled.div`
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 10px;
+  color: #888;
+
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background-color: #444;
+  }
+`;
 
 function Home() {
   const [nickname, setNickname] = useState('');
@@ -43,25 +86,34 @@ function Home() {
     navigate(`/join/${roomId}`, { state: { nickname } });
   };
 
+  const handleSinglePlayer = () => {
+    if (!nickname) {
+      alert('Please enter a nickname.');
+      return;
+    }
+    navigate('/quiz/single-player', { state: { nickname } });
+  };
+
   return (
-    <div className="home-container">
-      <h1>Duelizt</h1>
-      <input
+    <HomeContainer>
+      <Title>Duelizt</Title>
+      <Input
         type="text"
         placeholder="Enter your nickname"
         value={nickname}
         onChange={(e) => setNickname(e.target.value)}
       />
-      <button onClick={handleCreateDuel}>Create Duel</button>
-      <hr />
-      <input
+      <Button onClick={handleSinglePlayer}>Single Player</Button>
+      <OrDivider>OR</OrDivider>
+      <Button onClick={handleCreateDuel}>Create Duel</Button>
+      <Input
         type="text"
         placeholder="Enter Room ID to join"
         value={roomId}
         onChange={(e) => setRoomId(e.target.value)}
       />
-      <button onClick={handleJoinDuel}>Join Duel</button>
-    </div>
+      <Button onClick={handleJoinDuel}>Join Duel</Button>
+    </HomeContainer>
   );
 }
 

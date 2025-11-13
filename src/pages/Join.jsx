@@ -1,6 +1,49 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
+import styled from 'styled-components';
+
+const JoinContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+  max-width: 400px;
+`;
+
+const Title = styled.h1`
+  font-size: 48px;
+  color: #6c5ce7;
+`;
+
+const Input = styled.input`
+  width: 100%;
+`;
+
+const Button = styled.button`
+  width: 100%;
+  background-color: #6c5ce7;
+  color: #fff;
+
+  &:hover {
+    background-color: #5a4cdb;
+  }
+`;
+
+const PlayerList = styled.ul`
+  list-style: none;
+  width: 100%;
+  padding: 0;
+`;
+
+const PlayerItem = styled.li`
+  padding: 10px;
+  background-color: #333;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  font-size: 18px;
+`;
 
 function Join() {
   const { roomId: paramRoomId } = useParams();
@@ -59,10 +102,10 @@ function Join() {
   };
 
   return (
-    <div className="join-container">
-      <h1>Join Duel</h1>
+    <JoinContainer>
+      <Title>Join Duel</Title>
       {!paramRoomId && (
-        <input
+        <Input
           type="text"
           placeholder="Enter Room ID"
           value={roomId}
@@ -70,7 +113,7 @@ function Join() {
         />
       )}
       {!location.state?.nickname && (
-        <input
+        <Input
           type="text"
           placeholder="Enter your nickname"
           value={nickname}
@@ -78,20 +121,20 @@ function Join() {
         />
       )}
       {(!paramRoomId || !location.state?.nickname) && (
-        <button onClick={handleJoin}>Join</button>
+        <Button onClick={handleJoin}>Join</Button>
       )}
       <p>{message}</p>
       {players.length > 0 && (
         <div>
           <h2>Players in Room ({roomId}):</h2>
-          <ul>
+          <PlayerList>
             {players.map((player) => (
-              <li key={player.id}>{player.nickname}</li>
+              <PlayerItem key={player.id}>{player.nickname}</PlayerItem>
             ))}
-          </ul>
+          </PlayerList>
         </div>
       )}
-    </div>
+    </JoinContainer>
   );
 }
 
